@@ -154,7 +154,7 @@ if __name__ == "__main__":
     
     sliceLen = mid.ticks_per_beat * 4 * 1
 
-    newTrack = getMidiSlice(track=track, startTime=sliceLen*90, endTime=sliceLen*91)
+    newTrack = getMidiSlice(track=track, startTime=sliceLen*1, endTime=sliceLen*2)
 
     newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
     newMid.tracks.append(newTrack)
