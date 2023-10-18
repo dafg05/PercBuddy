@@ -5,7 +5,7 @@ import mido
 from pathlib import Path
 
 
-def splitMidiFile(sourceFilename, barStep: int = 1):
+def splitMidiFileByBarSteps(sourceFilename, barStep: int = 1):
     """
     Assumes single midi track per file
     sourceFileName excludes extension
@@ -27,9 +27,29 @@ def splitMidiFile(sourceFilename, barStep: int = 1):
         newMid.tracks.append(b)
         newMid.save(f"{fileSplitDir}/{sourceFilename}_slice_{i:03d}.mid")
 
+def separateMidiFileByPitches(sourceFilename, separationName, pitches):
+    """
+    Assumes single midi track per file
+    sourceFileName excludes extension
+    """
+
+    mid = mido.MidiFile(f"{MIDI_SOURCE_DIR}/{sourceFilename}.mid")
+    track = mid.tracks[0]
+
+    newTrack = mu.separateIntoPitches(track, pitches)
+
+    # fileSplitDir = f"{MIDI_SEPARATE_DIR}/separate_{sourceFilename}"
+    # Path(fileSplitDir).mkdir(parents=True, exist_ok=True)
+
+    newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
+    newMid.tracks.append(newTrack)
+    newMid.save(f"{MIDI_SEPARATE_DIR}/{sourceFilename}_{separationName}.mid")
+
 
 if __name__ == "__main__":
     sourceFilename = "4_afrocuban-calypso-ex0"
-    splitMidiFile(sourceFilename)
+    pitches = KICKS_NOTES
+    pitches.extend(SNARES_NOTES)
+    separateMidiFileByPitches(sourceFilename, "kicks+snares", pitches)
 
 

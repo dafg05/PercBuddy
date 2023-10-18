@@ -135,6 +135,31 @@ def getMidiSlice(track: MidiTrack, startTime: int, endTime, metaData: list = [])
     closeMidiTrack(newTrack)
     return newTrack
 
+def separateIntoPitches(track: MidiTrack, pitches: list):
+    """
+    Separates a midi track into a new track containing only the specified pitches
+    """
+
+    # initialize a new track with meta data
+    newTrack = MidiTrack()
+    newTrack.extend(getBeginningMetaData(track))
+
+    currAbsTime = 0
+    lastAbsTime = 0
+    for m in track:
+        currAbsTime += m.time
+        # only add messages of this specific pitch
+        if isinstance(m, mido.Message) and (m.type == 'note_on' or m.type == 'note_off'):
+            if m.note in pitches:
+                newM = m.copy()
+                newM.time = currAbsTime - lastAbsTime
+                newTrack.append(newM)
+                lastAbsTime = currAbsTime
+    # end of track meta message
+    newTrack.append(mido.MetaMessage('end_of_track'))
+    return newTrack
+
+
 def getBeginningMetaData(track: MidiTrack):
     """
     Returns a list of meta messages that occur before the first non-meta message
@@ -146,16 +171,32 @@ def getBeginningMetaData(track: MidiTrack):
         i += 1
     return metaData
 
-if __name__ == "__main__":
-    # test get midi slice
 
+def testSplitIntoBars():
     mid = mido.MidiFile(f"{MIDI_SOURCE_DIR}/4_afrocuban-calypso-ex0.mid")
-    track = mid.tracks[0]
-    
+    track = mid.tracks[0]       
+            
     sliceLen = mid.ticks_per_beat * 4 * 1
 
     newTrack = getMidiSlice(track=track, startTime=sliceLen*1, endTime=sliceLen*2)
 
     newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
+    newMid.tracks.append(newTrack)      
+    newMid.save(f"{MIDI_SPLIT_DIR}/test.mid")       
+
+def testSeparateIntoPitches():
+    mid = mido.MidiFile(f"{MIDI_SPLIT_DIR}/4_afrocuban-calypso-ex0_slice_063.mid")
+    track = mid.tracks[0]
+
+
+    pitches = [51, 44, 36]
+    newTrack = separateIntoPitches(track, pitches)
+
+    newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
     newMid.tracks.append(newTrack)
     newMid.save(f"{MIDI_SPLIT_DIR}/test.mid")
+
+if __name__ == "__main__":
+    # test get midi slice
+    testSeparateIntoPitches()
+    
