@@ -2,7 +2,9 @@ from constants import *
 
 import math
 import mido
+import os
 from mido import MidiTrack
+from note_seq import midi_io
 
 def splitMidiTrackIntoBars(track: MidiTrack, barStep: int, beatsPerBar: int,  ticksPerBeat: int):
     metaData= getBeginningMetaData(track)
@@ -159,6 +161,33 @@ def separateIntoPitches(track: MidiTrack, pitches: list):
     newTrack.append(mido.MetaMessage('end_of_track'))
     return newTrack
 
+def deletePitches(track: MidiTrack, pitches: list):
+    """
+    Deletes all messages with the specified pitches from the track
+    """
+    pitchesToKeep = [x for x in range(128) if x not in pitches]
+    return separateIntoPitches(track, pitchesToKeep)
+
+def change_midi_tempo(midi_file_path, new_tempo):
+    # Load the MIDI file
+    mid = mido.MidiFile(midi_file_path)
+
+    # Create a new MIDI file with the adjusted tempo
+    new_mid = mido.MidiFile()
+    new_track = MidiTrack()
+    new_mid.tracks.append(new_track)
+
+    for msg in mid.tracks[0]:
+        # If we find a set_tempo message, change its tempo
+        if msg.type == 'set_tempo':
+            msg = mido.MetaMessage('set_tempo', tempo=new_tempo)
+        new_track.append(msg)
+
+    # Save the new MIDI file
+    new_mid.save(midi_file_path)
+
+    return midi_file_path
+
 
 def getBeginningMetaData(track: MidiTrack):
     """
@@ -171,32 +200,63 @@ def getBeginningMetaData(track: MidiTrack):
         i += 1
     return metaData
 
+def mergeTracks(trackA, trackB):
+    def processTrack(track, collectMeta):
+        absoluteTime = 0
+        trackEvents = []
+        for msg in track:
+            if isinstance(msg, mido.MetaMessage):
+                if collectMeta:
+                    trackEvents.append((absoluteTime, msg))
+                # Stop collecting meta messages after the first non-meta message.
+                collectMeta = not isinstance(msg, mido.Message)
+            else:
+                absoluteTime += msg.time
+                trackEvents.append((absoluteTime, msg))
+        return trackEvents
 
-def testSplitIntoBars():
-    mid = mido.MidiFile(f"{MIDI_SOURCE_DIR}/4_afrocuban-calypso-ex0.mid")
-    track = mid.tracks[0]       
-            
-    sliceLen = mid.ticks_per_beat * 4 * 1
+    def mergeSortedEvents(events1, events2):
+        mergedEvents = []
+        i, j = 0, 0
 
-    newTrack = getMidiSlice(track=track, startTime=sliceLen*1, endTime=sliceLen*2)
+        while i < len(events1) and j < len(events2):
+            if events1[i][0] <= events2[j][0]:
+                mergedEvents.append(events1[i])
+                i += 1
+            else:
+                mergedEvents.append(events2[j])
+                j += 1
+        
+        # Add any remaining events from either list
+        mergedEvents.extend(events1[i:])
+        mergedEvents.extend(events2[j:])
+        return mergedEvents
 
-    newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
-    newMid.tracks.append(newTrack)      
-    newMid.save(f"{MIDI_SPLIT_DIR}/test.mid")       
+    events1 = processTrack(trackA, collectMeta=True)
+    events2 = processTrack(trackB, collectMeta=False)
 
-def testSeparateIntoPitches():
-    mid = mido.MidiFile(f"{MIDI_SPLIT_DIR}/4_afrocuban-calypso-ex0_slice_063.mid")
-    track = mid.tracks[0]
+    mergedEvents = mergeSortedEvents(events1, events2)
 
+    mergedTrack = MidiTrack()
+    lastTime = 0
+    for absoluteTime, msg in mergedEvents:
+        deltaTime = absoluteTime - lastTime
+        lastTime = absoluteTime
+        newMsg = msg.copy(time=deltaTime)
+        mergedTrack.append(newMsg)
 
-    pitches = [51, 44, 36]
-    newTrack = separateIntoPitches(track, pitches)
+    return mergedTrack
 
-    newMid = mido.MidiFile(ticks_per_beat=mid.ticks_per_beat)
-    newMid.tracks.append(newTrack)
-    newMid.save(f"{MIDI_SPLIT_DIR}/test.mid")
+def mergeMultipleTracks(tracks):
+    """
+    Merges multiple tracks into a single track
+    """
+    # mergedTrack = MidiTrack()
+    mergedTrack = MidiTrack(getBeginningMetaData(tracks[0]))
+    for track in tracks:
+        mergedTrack = mergeTracks(mergedTrack, track)
+    return mergedTrack
+        
 
 if __name__ == "__main__":
-    # test get midi slice
-    testSeparateIntoPitches()
-    
+    print("hello world")
